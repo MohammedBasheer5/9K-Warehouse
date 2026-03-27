@@ -1,12 +1,14 @@
 """
-app.py — 9K Warehouse (OPTIMIZED)
+app.py — 9K Warehouse (OPTIMIZED + IMAGE COMPRESSION)
 """
 
 import streamlit as st
 import pandas as pd
 import os
 import base64
+import io
 import streamlit.components.v1 as components
+from PIL import Image
 
 st.set_page_config(
     page_title="9K Warehouse",
@@ -15,7 +17,7 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════
-# helpers — كل شيء مع cache
+# helpers
 # ══════════════════════════════════════════
 @st.cache_data(show_spinner=False)
 def _load_emp(mtime: float):
@@ -25,31 +27,48 @@ def load_employees():
     mtime = os.path.getmtime("employees.xlsx") if os.path.exists("employees.xlsx") else 0
     return _load_emp(mtime)
 
-@st.cache_data(show_spinner=False, max_entries=200)
-def get_b64(path: str) -> str:
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-@st.cache_data(show_spinner=False, max_entries=200)
-def get_mime(path: str) -> str:
+@st.cache_data(show_spinner=False, max_entries=300)
+def get_b64(path: str, max_size: int = 900, quality: int = 72) -> str:
     ext = path.rsplit(".", 1)[-1].lower()
-    return "image/png" if ext == "png" else "image/jpeg"
+    # PDF أو ملفات غير صور — أرجعها كما هي بدون ضغط
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    try:
+        img = Image.open(path)
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        w, h = img.size
+        if max(w, h) > max_size:
+            ratio = max_size / max(w, h)
+            img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+
+def get_mime(path: str) -> str:
+    return "image/jpeg"  # دائماً JPEG بعد الضغط
 
 def img_html(path: str, alt: str = "", style: str = "") -> str:
     if not os.path.exists(path):
         return '<div style="width:100%;height:100%;display:grid;place-items:center;opacity:.08;font-size:48px;">📦</div>'
     s = f' style="{style}"' if style else ""
-    return f'<img src="data:{get_mime(path)};base64,{get_b64(path)}" alt="{alt}"{s}>'
+    return f'<img src="data:image/jpeg;base64,{get_b64(path)}" alt="{alt}"{s}>'
 
 @st.cache_data(show_spinner=False, max_entries=50)
 def list_dir_imgs(folder: str):
     if not os.path.exists(folder): return []
-    return sorted([f for f in os.listdir(folder) if f.lower().endswith((".jpg",".jpeg",".png"))])
+    return sorted([f for f in os.listdir(folder)
+                   if f.lower().endswith((".jpg", ".jpeg", ".png"))])
 
 @st.cache_data(show_spinner=False, max_entries=50)
 def list_dir_vids(folder: str):
     if not os.path.exists(folder): return []
-    return sorted([f for f in os.listdir(folder) if f.lower().endswith((".mp4",".mov",".avi",".webm"))])
+    return sorted([f for f in os.listdir(folder)
+                   if f.lower().endswith((".mp4", ".mov", ".avi", ".webm"))])
 
 @st.cache_data(show_spinner=False, max_entries=20)
 def get_cv_path(cv_val: str) -> str | None:
@@ -66,26 +85,77 @@ def get_cv_path(cv_val: str) -> str | None:
                 return os.path.join(cv_dir, fname)
     return None
 
-# تحميل كل صور الموظفين مسبقاً في الذاكرة
 @st.cache_data(show_spinner=False)
 def preload_employee_images(emp_df):
+    """تحميل وضغط كل صور الموظفين مرة واحدة"""
     result = {}
     for _, row in emp_df.iterrows():
         path = f"assets/employees/{row['Image']}"
         if os.path.exists(path):
-            result[row['Name']] = (get_b64(path), get_mime(path))
+            result[row['Name']] = get_b64(path, max_size=900, quality=72)
     return result
 
-employees   = load_employees()
-emp_images  = preload_employee_images(employees)
+@st.cache_data(show_spinner=False)
+def build_gallery_html(folder: str, file_list: tuple) -> tuple:
+    imgs_b64 = []
+    for im in file_list:
+        fp = f"{folder}/{im}"
+        if os.path.exists(fp):
+            imgs_b64.append(f"data:image/jpeg;base64,{get_b64(fp, max_size=1200, quality=78)}")
+    thumbs = "".join([
+        f'<div class="gl-item" onclick="lbOpen({i})">'
+        f'<img src="{s}" alt="photo {i+1}" loading="lazy">'
+        f'<div class="gl-overlay"><div class="gl-icon">&#8599;</div>'
+        f'<div class="gl-num">#{str(i+1).zfill(2)}</div></div></div>'
+        for i, s in enumerate(imgs_b64)
+    ])
+    imgs_js = ",".join([f'"{s}"' for s in imgs_b64])
+    h = ((len(imgs_b64) + 3) // 4) * 200 + 80
+    return thumbs, imgs_js, h
 
-for k, v in [("view","home"), ("employee",None), ("cv_open",False)]:
-    if k not in st.session_state:
-        st.session_state[k] = v
+@st.cache_data(show_spinner=False)
+def build_video_html(folder: str, file_list: tuple) -> tuple:
+    mime_map = {"mp4": "video/mp4", "mov": "video/mp4",
+                "avi": "video/x-msvideo", "webm": "video/webm"}
+    vids_data = []
+    for vd in file_list:
+        vp = f"{folder}/{vd}"
+        if os.path.exists(vp):
+            ext3 = vd.rsplit(".", 1)[-1].lower()
+            mime = mime_map.get(ext3, "video/mp4")
+            with open(vp, "rb") as f:
+                b64v = base64.b64encode(f.read()).decode()
+            vids_data.append({"src": f"data:{mime};base64,{b64v}", "mime": mime})
+    thumbs = "".join([
+        f'<div class="vt-item" onclick="vpOpen({i})">'
+        f'<video src="{v["src"]}" muted preload="metadata" class="vt-preview" '
+        f'onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0;"></video>'
+        f'<div class="vt-overlay"><div class="vt-play">&#9654;</div></div>'
+        f'<div class="vt-num">#{str(i+1).zfill(2)}</div></div>'
+        for i, v in enumerate(vids_data)
+    ])
+    srcs  = ",".join([f'"{v["src"]}"'  for v in vids_data])
+    mimes = ",".join([f'"{v["mime"]}"' for v in vids_data])
+    h = ((len(vids_data) + 1) // 2) * 220 + 200
+    return thumbs, srcs, mimes, h
 
-# ══════════════════════════════════════════
-# CSS — مرة واحدة فقط
-# ══════════════════════════════════════════
+@st.cache_data(show_spinner=False)
+def load_wh_data(ba_f: str, gal_f: str) -> tuple:
+    exts = (".jpg", ".jpeg", ".png")
+    befores = sorted([f for f in os.listdir(ba_f)
+                      if "before" in f.lower() and f.lower().endswith(exts)]) \
+              if os.path.exists(ba_f) else []
+    afters  = sorted([f for f in os.listdir(ba_f)
+                      if "after" in f.lower() and f.lower().endswith(exts)]) \
+              if os.path.exists(ba_f) else []
+    pairs   = [(os.path.join(ba_f, b), os.path.join(ba_f, a),
+                b.replace("before_", "").rsplit(".", 1)[0].replace("_", " ").title())
+               for b, a in zip(befores, afters)]
+    gals    = sorted([f for f in os.listdir(gal_f)
+                      if f.lower().endswith(exts)]) \
+              if os.path.exists(gal_f) else []
+    return pairs, gals
+
 @st.cache_data(show_spinner=False)
 def get_css() -> str:
     return """
@@ -98,7 +168,6 @@ html,body,.stApp{background:var(--bg)!important;font-family:'Inter',sans-serif;c
 [data-testid="stStatusWidget"],[data-testid="collapsedControl"],
 section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hidden!important;}
 .block-container{padding:0!important;max-width:100%!important;}
-/* HOME */
 .hero-wrap{position:relative;width:100%;min-height:100svh;overflow:hidden;display:flex;flex-direction:column;}
 .hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(.55) saturate(.85);}
 .hero-overlay{position:absolute;inset:0;background:linear-gradient(160deg,rgba(6,10,18,.25) 0%,rgba(6,10,18,.15) 35%,rgba(6,10,18,.7) 75%,rgba(6,10,18,.95) 100%);}
@@ -119,7 +188,6 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 .about-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),transparent);}
 .about-label{font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;text-shadow:0 0 20px rgba(201,168,76,.35);}
 .about-text{font-size:14px;color:rgba(232,230,223,.78);line-height:1.85;font-weight:300;}
-/* TEAM */
 .pw2{padding:0 1.6rem;}
 .emp-card2{background:#060a12;border:1px solid rgba(201,168,76,.15);border-radius:10px;overflow:hidden;margin-bottom:4px;cursor:pointer;transition:background .2s;}
 .emp-card2:hover{background:#0e1525;}
@@ -133,7 +201,6 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 .cbody2{padding:12px 14px 14px;border-top:1px solid rgba(201,168,76,.15);background:rgba(6,10,18,.98);}
 .cname2{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .crole2{font-size:10px;color:#c9a84c;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-/* PROFILE */
 .profile-hero{display:grid;grid-template-columns:1fr;border-radius:16px;overflow:hidden;border:1px solid rgba(201,168,76,.2);box-shadow:0 0 60px rgba(201,168,76,.06),0 20px 60px rgba(0,0,0,.5);margin-bottom:1.5rem;min-height:340px;}
 .profile-left{background:linear-gradient(135deg,#0b1628,#07101e 60%,#050d18);padding:2.5rem 2rem;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:1.1rem;position:relative;}
 .profile-left::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#c9a84c,rgba(201,168,76,.1),transparent);}
@@ -155,7 +222,6 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 .sl2{flex:1;height:1px;background:rgba(255,255,255,.06);}
 .sc2{font-size:10px;color:#4a4940;white-space:nowrap;letter-spacing:1px;}
 .eb2{padding:2.5rem;border:1px dashed rgba(255,255,255,.06);border-radius:10px;text-align:center;background:#0c1020;font-size:12px;color:#4a4940;letter-spacing:1px;margin-bottom:1rem;}
-/* WAREHOUSE */
 .pw{padding:0 1.6rem;}
 .wh-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.06);border-radius:12px;overflow:hidden;margin-bottom:2rem;}
 .wh-stat{background:#0c1020;padding:1.4rem;text-align:center;}
@@ -177,7 +243,6 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 .sln{flex:1;height:1px;background:rgba(255,255,255,.06);}
 .scnt{font-size:10px;color:#4a4940;white-space:nowrap;letter-spacing:1px;}
 .ebox{padding:2.5rem;border:1px dashed rgba(255,255,255,.06);border-radius:10px;text-align:center;background:#0c1020;font-size:12px;color:#4a4940;letter-spacing:1px;}
-/* BUTTONS */
 .stButton button{background:rgba(201,168,76,.07)!important;color:rgba(201,168,76,.95)!important;border:1px solid rgba(201,168,76,.3)!important;border-radius:8px!important;font-family:'Inter',sans-serif!important;font-size:11px!important;font-weight:700!important;letter-spacing:2px!important;text-transform:uppercase!important;padding:12px 18px!important;width:100%!important;transition:all .2s!important;}
 .stButton button:hover{background:rgba(201,168,76,.14)!important;border-color:var(--gold)!important;color:var(--gold)!important;}
 .footer{border-top:1px solid var(--border);margin-top:1.5rem;padding:1.5rem 1.6rem;text-align:center;font-size:11px;color:#a09d96;letter-spacing:2px;text-transform:uppercase;font-weight:500;}
@@ -191,6 +256,16 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 }
 ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:rgba(201,168,76,.2);border-radius:10px;}
 </style>"""
+
+# ══════════════════════════════════════════
+# تهيئة
+# ══════════════════════════════════════════
+employees    = load_employees()
+emp_images   = preload_employee_images(employees)
+
+for k, v in [("view","home"), ("employee",None), ("cv_open",False)]:
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 st.markdown(get_css(), unsafe_allow_html=True)
 
@@ -206,7 +281,7 @@ def render_nav():
             <div style="font-size:9px;color:#4a4940;letter-spacing:2px;text-transform:uppercase;">Gaza · Est. 2026</div></div>
         </div>""", unsafe_allow_html=True)
     with col_btns:
-        c1,c2,c3 = st.columns(3)
+        c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("🏠 Home",      key="nav_home"): st.session_state.view="home";      st.rerun()
         with c2:
@@ -221,7 +296,8 @@ def render_nav():
 if st.session_state.view == "home":
     hp = "assets/9K_Image.png"
     if not os.path.exists(hp): hp = "assets/9kwh.png"
-    img_src = f"data:image/png;base64,{get_b64(hp)}" if os.path.exists(hp) \
+    img_src = f"data:image/jpeg;base64,{get_b64(hp, max_size=1600, quality=80)}" \
+              if os.path.exists(hp) \
               else "https://images.unsplash.com/photo-1553413077-190dd305871c?w=1600&q=80"
 
     st.markdown(f"""
@@ -244,7 +320,7 @@ if st.session_state.view == "home":
         <div class="about-card"><div class="about-label">Our Mission</div><div class="about-text">Reliable, accurate, and efficient warehouse operations supporting humanitarian and commercial needs — with integrity and precision.</div></div>
     </div></div>""", unsafe_allow_html=True)
 
-    col1,col2 = st.columns(2)
+    col1, col2 = st.columns(2)
     with col1:
         if st.button("👥  Meet The Team →", key="h_team"): st.session_state.view="team"; st.rerun()
     with col2:
@@ -258,22 +334,7 @@ render_nav()
 # 🏭 WAREHOUSE
 # ══════════════════════════════════════════
 if st.session_state.view == "warehouse":
-    ba_folder  = "assets/warehouse/before_after"
-    gal_folder = "assets/warehouse/gallery"
-
-    # تحميل كل الصور مرة واحدة
-    @st.cache_data(show_spinner=False)
-    def load_wh_data(ba_f, gal_f):
-        exts = (".jpg",".jpeg",".png")
-        befores = sorted([f for f in os.listdir(ba_f) if "before" in f.lower() and f.lower().endswith(exts)]) if os.path.exists(ba_f) else []
-        afters  = sorted([f for f in os.listdir(ba_f) if "after"  in f.lower() and f.lower().endswith(exts)]) if os.path.exists(ba_f) else []
-        pairs   = [(os.path.join(ba_f,b), os.path.join(ba_f,a),
-                    b.replace("before_","").rsplit(".",1)[0].replace("_"," ").title())
-                   for b,a in zip(befores,afters)]
-        gals    = sorted([f for f in os.listdir(gal_f) if f.lower().endswith(exts)]) if os.path.exists(gal_f) else []
-        return pairs, gals
-
-    pairs, gal_imgs = load_wh_data(ba_folder, gal_folder)
+    pairs, gal_imgs = load_wh_data("assets/warehouse/before_after", "assets/warehouse/gallery")
 
     st.markdown(f"""
     <div class="pw" style="margin-bottom:2.5rem;">
@@ -291,7 +352,7 @@ if st.session_state.view == "warehouse":
     """, unsafe_allow_html=True)
 
     if pairs:
-        for bp,ap,cap in pairs:
+        for bp, ap, cap in pairs:
             st.markdown(f'<div class="pw" style="margin-bottom:.5rem;"><div class="ba-pair"><div class="ba-panel">{img_html(bp,"Before")}<div class="ba-badge b">Before</div><div class="ba-cap">{cap} — Before</div></div><div class="ba-panel">{img_html(ap,"After")}<div class="ba-badge a">After</div><div class="ba-cap">{cap} — After</div></div></div></div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="pw"><div class="ba-pair"><div class="ba-empty">📦<br>Add before_1.jpg<br><small style="color:#c9a84c">assets/warehouse/before_after/</small></div><div class="ba-empty">🏭<br>Add after_1.jpg<br><small style="color:#c9a84c">assets/warehouse/before_after/</small></div></div></div>', unsafe_allow_html=True)
@@ -299,9 +360,9 @@ if st.session_state.view == "warehouse":
     st.markdown(f'<div class="pw"><div class="shdr" style="margin-top:2rem;"><div class="stl">Warehouse Photos</div><div class="sln"></div><div class="scnt">{len(gal_imgs)} photos</div></div></div>', unsafe_allow_html=True)
     if gal_imgs:
         gcols = st.columns(3)
-        for idx,gf in enumerate(gal_imgs):
-            with gcols[idx%3]:
-                st.markdown(f'<div class="wh-gal" style="margin:0 0 8px;">{img_html(os.path.join(gal_folder,gf),f"photo {idx+1}")}</div>', unsafe_allow_html=True)
+        for idx, gf in enumerate(gal_imgs):
+            with gcols[idx % 3]:
+                st.markdown(f'<div class="wh-gal" style="margin:0 0 8px;">{img_html(os.path.join("assets/warehouse/gallery", gf), f"photo {idx+1}")}</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div class="pw"><div class="ebox">Add photos to <span style="color:#c9a84c">assets/warehouse/gallery/</span></div></div>', unsafe_allow_html=True)
 
@@ -314,46 +375,44 @@ if st.session_state.view == "warehouse":
 if st.session_state.view == "profile":
 
     if st.button("← Back to Team", key="back"):
-        st.session_state.view = "team"
+        st.session_state.view    = "team"
         st.session_state.cv_open = False
         st.rerun()
 
     name    = st.session_state.employee
-    emp_row = employees[employees["Name"] == name].iloc[0] if name in employees["Name"].values else None
+    emp_row = employees[employees["Name"] == name].iloc[0] \
+              if name in employees["Name"].values else None
 
-    position    = emp_row["Position"] if emp_row is not None else "Team Member"
-    emp_img     = f"assets/employees/{emp_row['Image']}" if emp_row is not None else ""
+    position = emp_row["Position"] if emp_row is not None else "Team Member"
 
-    folder_name = name  # default
+    folder_name = name
     if emp_row is not None:
         for col in ("Folder", "FolderName"):
             if col in emp_row.index:
                 v = str(emp_row[col]).strip()
-                if v not in ("","nan","None"):
+                if v not in ("", "nan", "None"):
                     folder_name = v
                     break
 
-    default_bio = "Dedicated team member at 9K Warehouse — contributing expertise and commitment to every operation."
-    bio = default_bio
+    bio = "Dedicated team member at 9K Warehouse — contributing expertise and commitment to every operation."
     if emp_row is not None and "Bio" in emp_row.index:
         v = str(emp_row["Bio"]).strip()
-        if v not in ("","nan","None"):
+        if v not in ("", "nan", "None"):
             bio = v
 
-    # صورة الموظف — من الـ cache
+    # صورة الموظف من الـ cache المضغوط
     if name in emp_images:
-        b64_e, mime_e = emp_images[name]
-        ph = f'<img src="data:{mime_e};base64,{b64_e}" alt="{name}" style="width:100%;height:100%;object-fit:cover;object-position:center top;display:block;background:#06090f;">'
+        ph = f'<img src="data:image/jpeg;base64,{emp_images[name]}" alt="{name}" style="width:100%;height:100%;object-fit:cover;object-position:center top;display:block;background:#06090f;">'
     else:
         ph = '<div style="width:100%;height:100%;display:grid;place-items:center;background:#06090f;font-size:64px;opacity:.08;">👤</div>'
 
     # CV
-    cv_val  = ""
+    cv_val = ""
     if emp_row is not None:
         for col in emp_row.index:
-            if str(col).strip().lower() in ("cv","resume"):
+            if str(col).strip().lower() in ("cv", "resume"):
                 v = str(emp_row[col]).strip()
-                if v not in ("","nan","None","NaN"):
+                if v not in ("", "nan", "None", "NaN"):
                     cv_val = v
                     break
     cv_path = get_cv_path(cv_val)
@@ -395,8 +454,9 @@ if st.session_state.view == "profile":
                 st.rerun()
         with col2:
             with open(cv_path, "rb") as f:
-                st.download_button("⬇  Download CV", f, file_name=os.path.basename(cv_path), use_container_width=True)
-
+                st.download_button("⬇  Download CV", f,
+                                   file_name=os.path.basename(cv_path),
+                                   use_container_width=True)
         if st.session_state.cv_open:
             pdf_b64 = get_b64(cv_path)
             st.markdown(f"""
@@ -415,20 +475,6 @@ if st.session_state.view == "profile":
     st.markdown(f'<div style="padding:0 1.6rem;"><div class="sh2"><div class="st2">Work Gallery</div><div class="sl2"></div><div class="sc2">{len(imgs)} photos</div></div></div>', unsafe_allow_html=True)
 
     if imgs:
-        @st.cache_data(show_spinner=False)
-        def build_gallery_html(folder, file_list):
-            imgs_b64 = []
-            for im in file_list:
-                fp = f"{folder}/{im}"
-                if os.path.exists(fp):
-                    ext2  = fp.rsplit(".",1)[-1].lower()
-                    mime2 = "image/png" if ext2=="png" else "image/jpeg"
-                    imgs_b64.append(f"data:{mime2};base64,{get_b64(fp)}")
-            thumbs = "".join([f'<div class="gl-item" onclick="lbOpen({i})"><img src="{s}" alt="photo {i+1}" loading="lazy"><div class="gl-overlay"><div class="gl-icon">&#8599;</div><div class="gl-num">#{str(i+1).zfill(2)}</div></div></div>' for i,s in enumerate(imgs_b64)])
-            imgs_js = ",".join([f'"{s}"' for s in imgs_b64])
-            h = ((len(imgs_b64)+3)//4)*200+80
-            return thumbs, imgs_js, h
-
         thumbs_html, imgs_js, height = build_gallery_html(img_folder, tuple(imgs))
         components.html(f"""<!DOCTYPE html><html><head>
         <style>*{{box-sizing:border-box;margin:0;padding:0;}}body{{background:transparent;}}
@@ -481,21 +527,6 @@ if st.session_state.view == "profile":
     st.markdown(f'<div style="padding:0 1.6rem;"><div class="sh2" style="margin-top:1.5rem;"><div class="st2">Work Videos</div><div class="sl2"></div><div class="sc2">{len(vids)} videos</div></div></div>', unsafe_allow_html=True)
 
     if vids:
-        @st.cache_data(show_spinner=False)
-        def build_video_html(folder, file_list):
-            mime_map = {"mp4":"video/mp4","mov":"video/mp4","avi":"video/x-msvideo","webm":"video/webm"}
-            vids_data = []
-            for vd in file_list:
-                vp = f"{folder}/{vd}"
-                if os.path.exists(vp):
-                    ext3 = vd.rsplit(".",1)[-1].lower()
-                    vids_data.append({"src":f"data:{mime_map.get(ext3,'video/mp4')};base64,{get_b64(vp)}","mime":mime_map.get(ext3,"video/mp4")})
-            thumbs = "".join([f'<div class="vt-item" onclick="vpOpen({i})"><video src="{v["src"]}" muted preload="metadata" class="vt-preview" onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0;"></video><div class="vt-overlay"><div class="vt-play">&#9654;</div></div><div class="vt-num">#{str(i+1).zfill(2)}</div></div>' for i,v in enumerate(vids_data)])
-            srcs  = ",".join([f'"{v["src"]}"'  for v in vids_data])
-            mimes = ",".join([f'"{v["mime"]}"' for v in vids_data])
-            h = ((len(vids_data)+1)//2)*220+200
-            return thumbs, srcs, mimes, h
-
         vid_thumbs, vids_js_src, vids_js_mime, vid_height = build_video_html(vid_folder, tuple(vids))
         components.html(f"""<!DOCTYPE html><html><head>
         <style>*{{box-sizing:border-box;margin:0;padding:0;}}body{{background:transparent;}}
@@ -555,12 +586,10 @@ st.markdown("""
 cols = st.columns(4)
 for i, row in employees.iterrows():
     with cols[i % 4]:
-        num = str(i+1).zfill(2)
-        if row['Name'] in emp_images:
-            b64_t, mime_t = emp_images[row['Name']]
-            itag = f'<img src="data:{mime_t};base64,{b64_t}" alt="{row["Name"]}">'
-        else:
-            itag = '<img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" style="padding:40px;opacity:.15;">'
+        num  = str(i + 1).zfill(2)
+        itag = f'<img src="data:image/jpeg;base64,{emp_images[row["Name"]]}" alt="{row["Name"]}">' \
+               if row["Name"] in emp_images \
+               else '<img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" style="padding:40px;opacity:.15;">'
 
         st.markdown(f"""
         <div class="emp-card2">
@@ -579,3 +608,6 @@ for i, row in employees.iterrows():
             st.session_state.employee = row["Name"]
             st.session_state.cv_open  = False
             st.rerun()
+
+
+"pip install Pillow"
