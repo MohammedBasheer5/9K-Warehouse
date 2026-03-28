@@ -608,5 +608,3 @@ for i, row in employees.iterrows():
             st.session_state.cv_open  = False
             st.rerun()
 
-
-"pip install Pillow"
