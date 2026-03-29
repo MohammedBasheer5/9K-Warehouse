@@ -170,8 +170,15 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 .hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(.55) saturate(.85);}
 .hero-overlay{position:absolute;inset:0;background:linear-gradient(160deg,rgba(6,10,18,.25) 0%,rgba(6,10,18,.15) 35%,rgba(6,10,18,.7) 75%,rgba(6,10,18,.95) 100%);}
 .hero-content{position:relative;z-index:10;flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:2rem 1.6rem 1.5rem;gap:.9rem;}
-@media(max-width:767px){.hero-wrap{min-height:auto!important;}.hero-img{position:relative!important;height:60vw!important;min-height:220px;display:block;}.hero-overlay{display:none!important;}.hero-content{position:relative!important;background:var(--bg);padding:1.5rem 1.6rem 1.8rem!important;}}
-.hero-eyebrow{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;color:var(--gold);}
+@media(max-width:767px){
+  .hero-wrap{min-height:auto!important;}
+  .hero-img{position:relative!important;width:100%!important;height:75vw!important;min-height:260px;display:block;object-fit:cover;object-position:center top;}
+  .hero-overlay{display:none!important;}
+  .hero-content{position:relative!important;background:var(--bg);padding:1.2rem 1.6rem 1.6rem!important;gap:.5rem!important;}
+  .hero-title{font-size:clamp(44px,13vw,72px)!important;letter-spacing:2px!important;}
+  .hero-eyebrow{font-size:9px!important;}
+  .hero-sub{font-size:9px!important;}
+}.hero-eyebrow{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;color:var(--gold);}
 .hero-eyebrow::before{content:'';width:20px;height:1.5px;background:var(--gold);display:block;}
 .hero-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,11vw,100px);color:#fff;line-height:1;letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 60px rgba(201,168,76,.18);white-space:nowrap;}
 .hero-title span{color:var(--gold);}
@@ -320,8 +327,10 @@ if st.session_state.view == "home":
             <div class="hero-title">9K <span>WAREHOUSE</span></div>
             <div class="hero-sub">Operations Division · Est. 2026</div>
             <div style="direction:rtl;text-align:right;margin-top:.5rem;">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,9vw,90px);color:#fff;line-height:1;letter-spacing:3px;text-shadow:0 0 60px rgba(201,168,76,.18);">We work in <span style="color:#c9a84c;">silence</span></div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,7vw,70px);color:#fff;line-height:1;letter-spacing:3px;text-shadow:0 0 60px rgba(201,168,76,.18);margin-top:4px;">And silence is not <span style="color:#c9a84c;">Our work</span></div>
+            <div style="margin-top:.2rem;border-top:1px solid rgba(201,168,76,.2);padding-top:.8rem;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(38px,10vw,90px);color:#fff;line-height:.95;letter-spacing:2px;text-shadow:0 0 60px rgba(201,168,76,.18);">WE WORK IN <span style="color:#c9a84c;">SILENCE</span></div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,7vw,68px);color:#fff;line-height:.95;letter-spacing:2px;margin-top:4px;">SILENCE IS NOT <span style="color:#c9a84c;">OUR WORK</span></div>
+        </div>
         </div>
         </div>
     </div>
