@@ -341,7 +341,7 @@ if st.session_state.view == "home":
     </div>
     <div class="body-wrap"><div class="about-grid">
         <div class="about-card"><div class="about-label">Who We Are</div><div class="about-text">9K Warehouse is a professional logistics and warehouse management team based in Gaza, committed to delivering excellence in every operation.</div></div>
-        <div class="about-card"><div class="about-label">Our Mission</div><div class="about-text">Reliable, accurate, and efficient warehouse operations supporting humanitarian and commercial needs — with integrity and precision.</div></div>
+        <div class="about-card"><div class="about-label">Our Mission</div><div class="about-text">Reliable, accurate, and efficient warehouse operations supporting humanitarian and commercial needs, with integrity and precision.</div></div>
     </div></div>""", unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
