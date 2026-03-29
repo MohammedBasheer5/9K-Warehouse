@@ -647,7 +647,7 @@ st.markdown("""<div class="pw2"><div style="margin-bottom:2.5rem;">
     <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(40px,8vw,70px);color:#e8e6df;line-height:.95;letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem;">
         Meet the<br><span style="color:#c9a84c;">Warehouse Team</span>
     </div>
-    <div style="font-size:13px;color:#4a4940;max-width:400px;line-height:1.8;">The professionals behind every operation — dedicated, skilled, and driven to excellence.</div>
+    <div style="font-size:13px;color:#4a4940;max-width:400px;line-height:1.8;">The professionals behind every operation, dedicated, skilled, and driven to excellence.</div>
 </div></div>""", unsafe_allow_html=True)
 
 cols = st.columns(4)
