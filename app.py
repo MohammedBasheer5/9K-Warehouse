@@ -327,7 +327,7 @@ if st.session_state.view == "home":
             <div class="hero-title">9K <span>WAREHOUSE</span></div>
             <div class="hero-sub">Operations Division · Est. 2026</div>
             <div style="direction:rtl;text-align:right;margin-top:.5rem;">
-            <div style="margin-top:.2rem;border-top:1px solid rgba(201,168,76,.2);padding-top:.8rem;">
+            <div style="margin-top:.2rem;border-top:1px solid rgba(201,168,76,.2);padding-top:.8rem;text-align:center;">
             <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(38px,10vw,90px);color:#fff;line-height:.95;letter-spacing:2px;text-shadow:0 0 60px rgba(201,168,76,.18);">WE WORK IN <span style="color:#c9a84c;">SILENCE</span></div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,7vw,68px);color:#fff;line-height:.95;letter-spacing:2px;margin-top:4px;">SILENCE IS NOT <span style="color:#c9a84c;">OUR WORK</span></div>
         </div>
