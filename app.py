@@ -318,8 +318,8 @@ if st.session_state.view == "home":
             <div class="hero-title">9K <span>WAREHOUSE</span></div>
             <div class="hero-sub">Operations Division · Est. 2026</div>
             <div style="direction:rtl;text-align:right;margin-top:.5rem;">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,9vw,90px);color:#fff;line-height:1;letter-spacing:3px;text-shadow:0 0 60px rgba(201,168,76,.18);">نعمل في <span style="color:#c9a84c;">صمت</span></div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,7vw,70px);color:#fff;line-height:1;letter-spacing:3px;text-shadow:0 0 60px rgba(201,168,76,.18);margin-top:4px;">والصمت ليس <span style="color:#c9a84c;">عملنا</span></div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,9vw,90px);color:#fff;line-height:1;letter-spacing:3px;text-shadow:0 0 60px rgba(201,168,76,.18);">We work in <span style="color:#c9a84c;">silence</span></div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,7vw,70px);color:#fff;line-height:1;letter-spacing:3px;text-shadow:0 0 60px rgba(201,168,76,.18);margin-top:4px;">And silence is not <span style="color:#c9a84c;">Our work</span></div>
         </div>
         </div>
     </div>
