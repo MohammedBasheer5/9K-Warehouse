@@ -428,10 +428,10 @@ if st.session_state.view == "warehouse":
 if st.session_state.view == "security":
     st.markdown("""<div class="pw2"><div style="margin-bottom:2.5rem;">
         <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#c9a84c;margin-bottom:.8rem;">
-            <span style="width:20px;height:1px;background:#c9a84c;display:block;"></span>Security & Protection
+            <span style="width:20px;height:1px;background:#c9a84c;display:block;"></span>Our People
         </div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(40px,8vw,70px);color:#e8e6df;line-height:.95;letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem;">
-            Security<br><span style="color:#c9a84c;">Team</span>
+            Meet the<br><span style="color:#c9a84c;">Security Team</span>
         </div>
         <div style="font-size:15px;color:rgba(232,230,223,.75);max-width:500px;line-height:1.9;font-weight:300;">The professionals responsible for protecting the warehouse and securing operations around the clock.</div>
     </div></div>""", unsafe_allow_html=True)
@@ -958,4 +958,3 @@ for i, row in employees.iterrows():
 app.py — 9K Warehouse (MAXIMUM SPEED OPTIMIZED)
 
 """
-            
