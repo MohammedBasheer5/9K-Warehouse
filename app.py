@@ -335,7 +335,7 @@ if st.session_state.view == "home":
         </div>
     </div>
     <div class="stats-row">
-        <div class="stat-card"><div class="stat-num">9K</div><div class="stat-label">Items Managed</div></div>
+        <div class="stat-card"><div class="stat-num">9K</div><div class="stat-label">WAREHOUSE</div></div>
         <div class="stat-card"><div class="stat-num">24/7</div><div class="stat-label">Operations</div></div>
         <div class="stat-card"><div class="stat-num">100%</div><div class="stat-label">Accuracy</div></div>
     </div>
