@@ -947,14 +947,3 @@ for i, row in employees.iterrows():
             st.session_state.view     = "profile"
             st.session_state.employee = row["Name"]
             st.rerun()
-            
-            
-            
-            
-            
-    
-            
-"""
-app.py — 9K Warehouse (MAXIMUM SPEED OPTIMIZED)
-
-"""
