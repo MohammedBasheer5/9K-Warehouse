@@ -1,12 +1,6 @@
 """
 app.py — 9K Warehouse (MAXIMUM SPEED OPTIMIZED)
 
-التحسينات:
-- الصور: ضغط مرة واحدة + cache دائم
-- الفيديوهات: تُقدَّم عبر st.video() مباشرة بدون base64
-- CV: PyMuPDF لتحويل لصور مرة واحدة مع cache
-- لا rerun غير ضروري
-- HTML مبني مرة واحدة عبر cache
 """
 
 import streamlit as st
@@ -34,6 +28,14 @@ def _load_emp(mtime: float):
 def load_employees():
     mtime = os.path.getmtime("employees.xlsx") if os.path.exists("employees.xlsx") else 0
     return _load_emp(mtime)
+
+@st.cache_data(show_spinner=False)
+def _load_sec(mtime: float):
+    return pd.read_excel("security_employees.xlsx")
+
+def load_security():
+    mtime = os.path.getmtime("security_employees.xlsx") if os.path.exists("security_employees.xlsx") else 0
+    return _load_sec(mtime)
 
 @st.cache_data(show_spinner=False, max_entries=500)
 def get_b64_img(path: str, max_size: int = 900, quality: int = 72) -> str:
@@ -106,6 +108,16 @@ def preload_emp_images(df_hash: str, names: tuple, images: tuple) -> dict:
     result = {}
     for name, img_file in zip(names, images):
         path = f"assets/employees/{img_file}"
+        if os.path.exists(path):
+            result[name] = get_b64_img(path, max_size=900, quality=72)
+    return result
+
+@st.cache_data(show_spinner=False)
+def preload_sec_images(df_hash: str, names: tuple, images: tuple) -> dict:
+    """تحميل وضغط كل صور أفراد الأمن مرة واحدة"""
+    result = {}
+    for name, img_file in zip(names, images):
+        path = f"assets/security/{img_file}"
         if os.path.exists(path):
             result[name] = get_b64_img(path, max_size=900, quality=72)
     return result
@@ -275,13 +287,21 @@ section[data-testid="stSidebar"],.stSidebar{display:none!important;visibility:hi
 # INIT
 # ══════════════════════════════════════════
 employees  = load_employees()
+security   = load_security()
+
 emp_images = preload_emp_images(
     str(os.path.getmtime("employees.xlsx") if os.path.exists("employees.xlsx") else 0),
     tuple(employees["Name"].tolist()),
     tuple(employees["Image"].tolist())
 )
 
-for k, v in [("view", "home"), ("employee", None)]:
+sec_images = preload_sec_images(
+    str(os.path.getmtime("security_employees.xlsx") if os.path.exists("security_employees.xlsx") else 0),
+    tuple(security["Name"].tolist()),
+    tuple(security["Image"].tolist())
+)
+
+for k, v in [("view", "home"), ("employee", None), ("sec_employee", None)]:
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -291,7 +311,7 @@ st.markdown(get_css(), unsafe_allow_html=True)
 # NAV
 # ══════════════════════════════════════════
 def render_nav():
-    col_logo, col_btns = st.columns([1, 2])
+    col_logo, col_btns = st.columns([1, 3])
     with col_logo:
         st.markdown("""<div style="display:flex;align-items:center;gap:10px;padding:.5rem 0;">
             <div style="width:36px;height:36px;border:1.5px solid #c9a84c;border-radius:8px;display:grid;place-items:center;font-family:'Bebas Neue',sans-serif;font-size:13px;color:#c9a84c;">9K</div>
@@ -299,13 +319,15 @@ def render_nav():
             <div style="font-size:9px;color:#4a4940;letter-spacing:2px;text-transform:uppercase;">Gaza · Est. 2026</div></div>
         </div>""", unsafe_allow_html=True)
     with col_btns:
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             if st.button("🏠 Home",      key="nav_home"): st.session_state.view = "home";      st.rerun()
         with c2:
-            if st.button("👥 Team",      key="nav_team"): st.session_state.view = "team";      st.rerun()
+            if st.button("👥 WAREHOUSE TEAM",      key="nav_team"): st.session_state.view = "team";      st.rerun()
         with c3:
             if st.button("🏭 Warehouse", key="nav_wh"):   st.session_state.view = "warehouse"; st.rerun()
+        with c4:
+            if st.button("🛡️ Security Team",  key="nav_sec"):  st.session_state.view = "security";  st.rerun()
     st.markdown("<div style='height:1px;background:rgba(255,255,255,.06);margin:0 0 1.5rem;'></div>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════
@@ -344,11 +366,13 @@ if st.session_state.view == "home":
         <div class="about-card"><div class="about-label">Our Mission</div><div class="about-text">Reliable, accurate, and efficient warehouse operations supporting humanitarian and commercial needs, with integrity and precision.</div></div>
     </div></div>""", unsafe_allow_html=True)
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
-        if st.button("👥  Meet The Team →", key="h_team"): st.session_state.view = "team"; st.rerun()
+        if st.button("👥  Meet The Warehouse team →",       key="h_team"): st.session_state.view = "team";     st.rerun()
     with c2:
-        if st.button("🏭  View Warehouse →", key="h_wh"):  st.session_state.view = "warehouse"; st.rerun()
+        if st.button("🏭  View Warehouse →",       key="h_wh"):   st.session_state.view = "warehouse"; st.rerun()
+    with c3:
+        if st.button("🛡️  Meet The Security Team →",           key="h_sec"):  st.session_state.view = "security";  st.rerun()
     st.markdown('<div class="footer">© 2026 9K Warehouse &nbsp;•&nbsp; Gaza &nbsp;•&nbsp; All Rights Reserved</div>', unsafe_allow_html=True)
     st.stop()
 
@@ -399,11 +423,262 @@ if st.session_state.view == "warehouse":
     st.stop()
 
 # ══════════════════════════════════════════
+# 🛡️ SECURITY TEAM PAGE
+# ══════════════════════════════════════════
+if st.session_state.view == "security":
+    st.markdown("""<div class="pw2"><div style="margin-bottom:2.5rem;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#c9a84c;margin-bottom:.8rem;">
+            <span style="width:20px;height:1px;background:#c9a84c;display:block;"></span>Security & Protection
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(40px,8vw,70px);color:#e8e6df;line-height:.95;letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem;">
+            Security<br><span style="color:#c9a84c;">Team</span>
+        </div>
+        <div style="font-size:15px;color:rgba(232,230,223,.75);max-width:500px;line-height:1.9;font-weight:300;">The professionals responsible for protecting the warehouse and securing operations around the clock.</div>
+    </div></div>""", unsafe_allow_html=True)
+
+    cols = st.columns(4)
+    for i, row in security.iterrows():
+        with cols[i % 4]:
+            itag = (f'<img src="data:image/jpeg;base64,{sec_images[row["Name"]]}" alt="{row["Name"]}">'
+                    if row["Name"] in sec_images
+                    else '<img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" style="padding:40px;opacity:.15;">')
+
+            st.markdown(f"""<div class="emp-card2">
+                <div class="cimg2">{itag}
+                    <div class="cnum2">{str(i+1).zfill(2)}</div>
+                    <div class="carrow2">↗</div>
+                </div>
+                <div class="cbody2">
+                    <div class="cname2">{row['Name']}</div>
+                    <div class="crole2">{row['Position']}</div>
+                </div>
+            </div>""", unsafe_allow_html=True)
+
+            if st.button("View Profile", key=f"sec_btn_{i}"):
+                st.session_state.view         = "sec_profile"
+                st.session_state.sec_employee = row["Name"]
+                st.rerun()
+
+    st.markdown('<div class="footer">© 2026 9K Warehouse • Gaza • Security Division</div>', unsafe_allow_html=True)
+    st.stop()
+
+# ══════════════════════════════════════════
+# 🛡 SECURITY PROFILE
+# ══════════════════════════════════════════
+if st.session_state.view == "sec_profile":
+
+    if st.button("← Back to Security Team", key="sec_back"):
+        st.session_state.view = "security"
+        st.rerun()
+
+    name    = st.session_state.sec_employee
+    emp_row = security[security["Name"] == name].iloc[0] \
+              if name in security["Name"].values else None
+
+    position    = emp_row["Position"] if emp_row is not None else "Security Personnel"
+    folder_name = name
+    if emp_row is not None:
+        for col in ("Folder", "FolderName"):
+            if col in emp_row.index:
+                v = str(emp_row[col]).strip()
+                if v not in ("", "nan", "None"):
+                    folder_name = v
+                    break
+
+    bio = "A dedicated security professional at 9K Warehouse — contributing expertise and commitment to every operation."
+    if emp_row is not None and "Bio" in emp_row.index:
+        v = str(emp_row["Bio"]).strip()
+        if v not in ("", "nan", "None"):
+            bio = v
+
+    ph = (f'<img src="data:image/jpeg;base64,{sec_images[name]}" alt="{name}" '
+          f'style="width:100%;height:100%;object-fit:cover;object-position:center top;display:block;">'
+          if name in sec_images
+          else '<div style="width:100%;height:100%;display:grid;place-items:center;font-size:64px;opacity:.08;">🛡️</div>')
+
+    # CV path
+    cv_val = ""
+    if emp_row is not None:
+        for col in emp_row.index:
+            if str(col).strip().lower() in ("cv", "resume"):
+                v = str(emp_row[col]).strip()
+                if v not in ("", "nan", "None", "NaN"):
+                    cv_val = v
+                    break
+    cv_path = find_cv(cv_val)
+
+    # ── Profile Hero ──
+    st.markdown(f"""
+    <div style="padding:0 1.6rem;">
+    <div class="profile-hero">
+        <div class="profile-left">
+            <div class="profile-tag">Security Personnel · Security Team</div>
+            <div class="profile-name">{name}</div>
+            <div class="profile-role">{position}</div>
+        </div>
+        <div class="profile-right">{ph}</div>
+    </div>
+    <div class="info-row">
+        <div class="info-card">
+            <div style="font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#c9a84c;margin-bottom:8px;">Full Name</div>
+            <div style="font-size:17px;font-weight:600;color:#fff;">{name}</div>
+        </div>
+        <div class="info-card">
+            <div style="font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#c9a84c;margin-bottom:8px;">Position</div>
+            <div style="font-size:17px;font-weight:600;color:#fff;">{position}</div>
+        </div>
+    </div>
+    <div class="bio-block">
+        <div style="font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#c9a84c;margin-bottom:10px;">About</div>
+        <div style="font-size:15px;color:rgba(232,230,223,.85);line-height:1.9;font-weight:300;">{bio}</div>
+    </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── CV Section ──
+    st.markdown(
+        '<div style="padding:0 1.6rem;">'
+        '<div class="sh2"><div class="st2">📄 Curriculum Vitae</div><div class="sl2"></div></div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    if cv_path and os.path.exists(cv_path):
+        cv_filename = os.path.basename(cv_path)
+        is_open = st.session_state.get("sec_cv_open", False)
+        ico     = "📂" if is_open else "📄"
+        btn_lbl = "✕ Close CV" if is_open else "👁 View CV"
+
+        st.markdown(f"""
+        <div style="padding:0 1.6rem;">
+        <div style="background:linear-gradient(135deg,#0d1828,#0a1220);border:1px solid rgba(201,168,76,.22);border-radius:14px;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:1.2rem 1.6rem;background:rgba(201,168,76,.04);border-bottom:1px solid rgba(201,168,76,.12);flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:46px;height:46px;border-radius:10px;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);display:grid;place-items:center;font-size:22px;flex-shrink:0;">{ico}</div>
+              <div>
+                <div style="font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;">Resume / CV</div>
+                <div style="font-size:11px;color:#4a4940;margin-top:3px;">{cv_filename}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button(btn_lbl, key="sec_cv_toggle", use_container_width=True):
+                st.session_state.sec_cv_open = not st.session_state.get("sec_cv_open", False)
+                st.rerun()
+        with col2:
+            with open(cv_path, "rb") as f:
+                st.download_button("⬇  Download CV", f,
+                                   file_name=cv_filename,
+                                   use_container_width=True)
+
+        if st.session_state.get("sec_cv_open", False):
+            import base64 as _b64
+            @st.cache_data(show_spinner=False)
+            def load_binary_sec(path):
+                with open(path, "rb") as f:
+                    return f.read()
+            pdf_bytes = load_binary_sec(cv_path)
+            pdf_b64   = _b64.b64encode(pdf_bytes).decode("utf-8")
+            st.markdown(f"""
+            <div style="padding:10px 1.6rem 0;">
+            <div style="border:1px solid rgba(201,168,76,.2);border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(0,0,0,.7);background:#0d1117;">
+                <iframe src="data:application/pdf;base64,{pdf_b64}" width="100%" height="900px" style="border:none;"></iframe>
+            </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="padding:0 1.6rem;"><div class="eb2">📄 No CV uploaded yet</div></div>', unsafe_allow_html=True)
+
+    # ── Work Gallery ──
+    img_folder = f"data/security/{folder_name}/images"
+    if not os.path.exists(img_folder):
+        img_folder = f"data/security/{folder_name}"
+    imgs = list_imgs(img_folder)
+
+    st.markdown(f'<div style="padding:0 1.6rem;"><div class="sh2"><div class="st2">Work Gallery</div><div class="sl2"></div><div class="sc2">{len(imgs)} photos</div></div></div>', unsafe_allow_html=True)
+
+    if imgs:
+        thumbs_html, imgs_js, gh = build_gallery_html(img_folder, tuple(imgs))
+        components.html(f"""<!DOCTYPE html><html><head>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}body{{background:transparent;}}
+.gl-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}}
+@media(max-width:600px){{.gl-grid{{grid-template-columns:repeat(2,1fr);}}}}
+.gl-item{{position:relative;aspect-ratio:1/1;overflow:hidden;border-radius:10px;border:1px solid rgba(201,168,76,.15);cursor:pointer;background:#06090f;}}
+.gl-item img{{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s,filter .3s;filter:brightness(.85);}}
+.gl-item:hover img{{transform:scale(1.07);filter:brightness(1);}}
+.gl-overlay{{position:absolute;inset:0;background:linear-gradient(to top,rgba(6,10,18,.8) 0%,transparent 55%);opacity:0;transition:opacity .3s;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;padding:10px;}}
+.gl-item:hover .gl-overlay{{opacity:1;}}
+.gl-icon{{width:30px;height:30px;border:1px solid #c9a84c;border-radius:50%;display:grid;place-items:center;color:#c9a84c;font-size:15px;background:rgba(6,10,18,.6);transform:translate(4px,-4px);transition:transform .3s;}}
+.gl-item:hover .gl-icon{{transform:translate(0,0);}}
+.gl-num{{font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(201,168,76,.7);align-self:flex-start;}}
+#lb{{display:none;position:fixed;inset:0;z-index:9999;background:rgba(4,7,14,.97);backdrop-filter:blur(16px);align-items:center;justify-content:center;}}
+#lb.open{{display:flex;}}
+#lb-img{{max-width:88vw;max-height:88vh;object-fit:contain;border-radius:8px;box-shadow:0 0 80px rgba(201,168,76,.15);transition:opacity .22s;}}
+.lb-nav{{position:fixed;top:50%;transform:translateY(-50%);width:50px;height:50px;border:1px solid rgba(201,168,76,.4);border-radius:50%;background:rgba(6,10,18,.8);color:#c9a84c;font-size:24px;display:grid;place-items:center;cursor:pointer;z-index:10001;user-select:none;}}
+#lb-prev{{left:16px;}}#lb-next{{right:16px;}}
+#lb-close{{position:fixed;top:18px;right:18px;width:44px;height:44px;border:1px solid rgba(201,168,76,.4);border-radius:50%;background:rgba(201,168,76,.08);color:#c9a84c;font-size:18px;display:grid;place-items:center;cursor:pointer;z-index:10001;}}
+#lb-counter{{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;letter-spacing:4px;color:rgba(201,168,76,.65);z-index:10001;}}
+#lb-dots{{position:fixed;bottom:50px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10001;}}
+.dot{{width:6px;height:6px;border-radius:50%;background:rgba(201,168,76,.3);transition:all .2s;cursor:pointer;}}
+.dot.active{{background:#c9a84c;width:18px;border-radius:3px;}}
+</style></head><body>
+<div class="gl-grid">{thumbs_html}</div>
+<div id="lb" onclick="lbBg(event)">
+  <div id="lb-close" onclick="lbClose()">✕</div>
+  <img id="lb-img" src="" alt="">
+  <div class="lb-nav" id="lb-prev" onclick="lbMove(-1)">&#8249;</div>
+  <div class="lb-nav" id="lb-next" onclick="lbMove(1)">&#8250;</div>
+  <div id="lb-dots"></div><div id="lb-counter"></div>
+</div>
+<script>
+const imgs={imgs_js};let cur=0;
+function dots(){{document.getElementById('lb-dots').innerHTML=imgs.map((_,i)=>`<div class="dot ${{i===cur?'active':''}}" onclick="go(${{i}})"></div>`).join('');}}
+function lbOpen(i){{cur=i;upd();document.getElementById('lb').classList.add('open');document.addEventListener('keydown',key);}}
+function lbClose(){{document.getElementById('lb').classList.remove('open');document.removeEventListener('keydown',key);}}
+function lbBg(e){{if(e.target.id==='lb')lbClose();}}
+function lbMove(d){{cur=(cur+d+imgs.length)%imgs.length;upd();}}
+function go(i){{cur=i;upd();}}
+function upd(){{const img=document.getElementById('lb-img');img.style.opacity=0;setTimeout(()=>{{img.src=imgs[cur];img.style.opacity=1;}},180);document.getElementById('lb-counter').textContent=String(cur+1).padStart(2,'0')+' / '+String(imgs.length).padStart(2,'0');dots();}}
+function key(e){{if(e.key==='ArrowRight')lbMove(1);else if(e.key==='ArrowLeft')lbMove(-1);else if(e.key==='Escape')lbClose();}}
+</script></body></html>""", height=gh, scrolling=False)
+    else:
+        st.markdown('<div style="padding:0 1.6rem;"><div class="eb2">📷 No work images yet</div></div>', unsafe_allow_html=True)
+
+    # ── Work Videos ──
+    vid_folder = f"data/security/{folder_name}/videos"
+    vids = list_vids(vid_folder)
+
+    st.markdown(f'<div style="padding:0 1.6rem;"><div class="sh2" style="margin-top:1.5rem;"><div class="st2">Work Videos</div><div class="sl2"></div><div class="sc2">{len(vids)} videos</div></div></div>', unsafe_allow_html=True)
+
+    if vids:
+        vcols = st.columns(2)
+        for idx, vf in enumerate(vids):
+            vp = os.path.join(vid_folder, vf)
+            with vcols[idx % 2]:
+                st.markdown(
+                    f'<div style="border:1px solid rgba(201,168,76,.15);border-radius:10px;overflow:hidden;margin-bottom:10px;">'
+                    f'<div style="background:#06090f;padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(201,168,76,.6);">#{str(idx+1).zfill(2)}</div>',
+                    unsafe_allow_html=True
+                )
+                st.video(vp)
+                st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="padding:0 1.6rem;"><div class="eb2">🎬 No work videos yet</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="border-top:1px solid rgba(201,168,76,.15);padding:1.5rem;text-align:center;font-size:11px;color:#a09d96;letter-spacing:2px;text-transform:uppercase;">© 2026 9K Warehouse • Gaza • Security Division</div>', unsafe_allow_html=True)
+    st.stop()
+
+# ══════════════════════════════════════════
 # 👤 PROFILE
 # ══════════════════════════════════════════
 if st.session_state.view == "profile":
 
-    if st.button("← Back to Team", key="back"):
+    if st.button("← Back to Warehouse team", key="back"):
         st.session_state.view = "team"
         st.rerun()
 
@@ -647,7 +922,7 @@ st.markdown("""<div class="pw2"><div style="margin-bottom:2.5rem;">
     <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(40px,8vw,70px);color:#e8e6df;line-height:.95;letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem;">
         Meet the<br><span style="color:#c9a84c;">Warehouse Team</span>
     </div>
-    <div style="font-size:13px;color:#4a4940;max-width:400px;line-height:1.8;">The professionals behind every operation, dedicated, skilled, and driven to excellence.</div>
+    <div style="font-size:15px;color:rgba(232,230,223,.75);max-width:500px;line-height:1.9;font-weight:300;">The professionals behind every operation, dedicated, skilled, and driven to excellence.</div>
 </div></div>""", unsafe_allow_html=True)
 
 cols = st.columns(4)
@@ -672,3 +947,15 @@ for i, row in employees.iterrows():
             st.session_state.view     = "profile"
             st.session_state.employee = row["Name"]
             st.rerun()
+            
+            
+            
+            
+            
+    
+            
+"""
+app.py — 9K Warehouse (MAXIMUM SPEED OPTIMIZED)
+
+"""
+            
