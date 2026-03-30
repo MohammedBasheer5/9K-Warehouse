@@ -512,7 +512,7 @@ if st.session_state.view == "sec_profile":
     <div style="padding:0 1.6rem;">
     <div class="profile-hero">
         <div class="profile-left">
-            <div class="profile-tag">Security Personnel · Security Team</div>
+            <div class="profile-tag">Employee Profile</div>
             <div class="profile-name">{name}</div>
             <div class="profile-role">{position}</div>
         </div>
